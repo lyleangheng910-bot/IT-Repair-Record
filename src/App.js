@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -714,35 +714,35 @@ export default function App() {
     }
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    clearMessages();
+  const loadData = useCallback(async () => {
+  setLoading(true);
+  clearMessages();
 
-    const { data, error } = await supabase
-      .from("tickets")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-    if (error) {
-      setErrorMessage(error.message);
-      setRecords([]);
-    } else {
-      setRecords(data || []);
-    }
+  if (error) {
+    setErrorMessage(error.message);
+    setRecords([]);
+  } else {
+    setRecords(data || []);
+  }
 
-    setLoading(false);
-  };
+  setLoading(false);
+}, []);
 
   useEffect(() => {
-    if (session) {
-      loadProfile();
-      loadData();
-    } else {
-      setProfile(null);
-      setRecords([]);
-      setLoading(false);
-    }
-  }, [session]);
+  if (session) {
+    loadProfile();
+    loadData();
+  } else {
+    setProfile(null);
+    setRecords([]);
+    setLoading(false);
+  }
+}, [session, loadData]);
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
