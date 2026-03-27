@@ -1143,20 +1143,35 @@ export default function App() {
 
                   <div className="field">
                     <label>Device Type</label>
-                    <input
-                      value={form.device_type}
-                      onChange={f("device_type")}
-                      placeholder="Laptop, Printer, Desktop..."
-                    />
+                    // <input
+                    //   value={form.device_type}
+                    //   onChange={f("device_type")}
+                    //   placeholder="Laptop, Printer, Desktop..."
+                    // />
+                    <select value={ form.device_type} onChange={f("device_type")}>
+                      <option value="Laptop">Laptop</option>
+                      <option value="Desktop">Desktop</option>
+                      <option value="Printer">Printer</option>
+                      <option value="Scanner">Scanner</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </div>
 
                   <div className="field">
                     <label>Brand *</label>
-                    <input
-                      value={form.brand}
-                      onChange={f("brand")}
-                      placeholder="Dell, HP, Lenovo..."
-                    />
+                    // <input
+                    //   value={form.brand}
+                    //   onChange={f("brand")}
+                    //   placeholder="Dell, HP, Lenovo..."
+                    // />
+                    <select value={ form.brand} onChange={f("brand")}>
+                      <option value="Dell">Dell</option>
+                      <option value="HP">HP</option>
+                      <option value="Lenovo">Lenovo</option>
+                      <option value="Macbook">Macbook</option>
+                      <option value="Other">Other</option>
+                    </select>
+
                   </div>
 
                   <div className="field">
