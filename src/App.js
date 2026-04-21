@@ -25,8 +25,8 @@ const EMPTY_FORM = {
   ticket_no: "",
   owner: "",
   department: "",
-  device_type: "",
-  brand: "",
+  device_type: "Laptop",
+  brand: "Dell",
   model: "",
   serial_no: "",
   asset_tag: "",
@@ -39,6 +39,16 @@ const EMPTY_FORM = {
   cost: "",
   warranty: false,
   notes: "",
+};
+
+const REPORT_FILTERS_DEFAULT = {
+  startDate: "",
+  endDate: "",
+  status: "all",
+  priority: "all",
+  department: "all",
+  technician: "all",
+  deviceType: "all",
 };
 
 const styles = `
@@ -307,6 +317,30 @@ const styles = `
     color: #1d4ed8;
   }
 
+  .tabs {
+    display: flex;
+    gap: 10px;
+    padding: 18px 18px 0;
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    border: 1px solid #d1d9e6;
+    background: #fff;
+    color: #334155;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .tab-btn.active {
+    background: #0f4c81;
+    color: #fff;
+    border-color: #0f4c81;
+  }
+
   .table-wrap {
     overflow: auto;
     padding: 0 0 4px;
@@ -458,10 +492,69 @@ const styles = `
     font-weight: 700;
   }
 
-  .form-grid {
+  .form-grid,
+  .report-filter-grid,
+  .report-card-grid,
+  .analytics-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
+  }
+
+  .form-grid,
+  .report-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 18px;
+  }
+
+  .analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 18px 18px;
+  }
+
+  .analytics-card,
+  .report-summary-card {
+    background: #fff;
+    border: 1px solid #dce6f3;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+  }
+
+  .report-summary-card .summary-value {
+    font-size: 24px;
+  }
+
+  .report-filters-wrap {
+    padding: 18px;
+    border-bottom: 1px solid #e5edf7;
+  }
+
+  .report-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+
+  .list-stat {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px dashed #e5edf7;
+    font-size: 14px;
+  }
+
+  .list-stat:last-child {
+    border-bottom: none;
+  }
+
+  .field-full {
+    grid-column: 1 / -1;
   }
 
   .form-full {
@@ -570,16 +663,45 @@ const styles = `
     color: #fff;
   }
 
+  @media print {
+    body {
+      background: #fff;
+    }
+    .hero-right,
+    .tabs,
+    .toolbar,
+    .report-actions,
+    .footer-meta,
+    .modal-overlay {
+      display: none !important;
+    }
+    .app, .panel, .summary-card, .report-summary-card, .analytics-card {
+      box-shadow: none !important;
+      border-color: #d1d5db !important;
+    }
+    .container {
+      max-width: 100%;
+      padding: 0;
+    }
+  }
+
   @media (max-width: 1100px) {
     .summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .report-card-grid,
+    .analytics-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
   @media (max-width: 760px) {
     .container { padding: 16px; }
-    .summary-grid { grid-template-columns: 1fr; }
-    .form-grid { grid-template-columns: 1fr; }
+    .summary-grid,
+    .report-card-grid,
+    .analytics-grid { grid-template-columns: 1fr; }
+    .form-grid,
+    .report-filter-grid { grid-template-columns: 1fr; }
     .brand-title { font-size: 23px; }
     .search-box { min-width: 100%; }
     .toolbar { align-items: stretch; }
@@ -594,6 +716,49 @@ function makeRecordNo() {
   const d = String(now.getDate()).padStart(2, "0");
   const rand = Math.floor(1000 + Math.random() * 9000);
   return `REC-${y}${m}${d}-${rand}`;
+}
+
+function formatMoney(value) {
+  const num = Number(value || 0);
+  return `$${num.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function downloadCsv(filename, rows) {
+  const csvContent = rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const text = String(cell ?? "");
+          const escaped = text.replace(/"/g, '""');
+          return `"${escaped}"`;
+        })
+        .join(",")
+    )
+    .join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function groupCount(items, getter) {
+  const map = new Map();
+  items.forEach((item) => {
+    const key = getter(item) || "Unknown";
+    map.set(key, (map.get(key) || 0) + 1);
+  });
+  return Array.from(map.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 function LoginScreen() {
@@ -658,6 +823,24 @@ function LoginScreen() {
   );
 }
 
+function StatList({ title, items, emptyText = "No data" }) {
+  return (
+    <div className="analytics-card">
+      <h3 className="section-title">{title}</h3>
+      {items.length === 0 ? (
+        <div className="muted">{emptyText}</div>
+      ) : (
+        items.slice(0, 10).map((item) => (
+          <div className="list-stat" key={item.name}>
+            <span>{item.name}</span>
+            <strong>{item.count}</strong>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -671,6 +854,8 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("records");
+  const [reportFilters, setReportFilters] = useState(REPORT_FILTERS_DEFAULT);
 
   const clearMessages = () => {
     setErrorMessage("");
@@ -715,34 +900,34 @@ export default function App() {
   };
 
   const loadData = useCallback(async () => {
-  setLoading(true);
-  clearMessages();
+    setLoading(true);
+    clearMessages();
 
-  const { data, error } = await supabase
-    .from("tickets")
-    .select("*")
-    .order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("tickets")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    setErrorMessage(error.message);
-    setRecords([]);
-  } else {
-    setRecords(data || []);
-  }
+    if (error) {
+      setErrorMessage(error.message);
+      setRecords([]);
+    } else {
+      setRecords(data || []);
+    }
 
-  setLoading(false);
-}, []);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-  if (session) {
-    loadProfile();
-    loadData();
-  } else {
-    setProfile(null);
-    setRecords([]);
-    setLoading(false);
-  }
-}, [session, loadData]);
+    if (session) {
+      loadProfile();
+      loadData();
+    } else {
+      setProfile(null);
+      setRecords([]);
+      setLoading(false);
+    }
+  }, [session, loadData]);
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
@@ -779,6 +964,107 @@ export default function App() {
     );
   }, [records]);
 
+  const reportFiltered = useMemo(() => {
+    return records.filter((r) => {
+      const inDate = r.date_in || "";
+      if (reportFilters.startDate && (!inDate || inDate < reportFilters.startDate)) {
+        return false;
+      }
+      if (reportFilters.endDate && (!inDate || inDate > reportFilters.endDate)) {
+        return false;
+      }
+      if (reportFilters.status !== "all" && r.status !== reportFilters.status) {
+        return false;
+      }
+      if (reportFilters.priority !== "all" && r.priority !== reportFilters.priority) {
+        return false;
+      }
+      if (
+        reportFilters.department !== "all" &&
+        (r.department || "Unknown") !== reportFilters.department
+      ) {
+        return false;
+      }
+      if (
+        reportFilters.technician !== "all" &&
+        (r.technician || "Unassigned") !== reportFilters.technician
+      ) {
+        return false;
+      }
+      if (
+        reportFilters.deviceType !== "all" &&
+        (r.device_type || "Unknown") !== reportFilters.deviceType
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [records, reportFilters]);
+
+  const reportStats = useMemo(() => {
+    const total = reportFiltered.length;
+    const fixed = reportFiltered.filter((r) => r.status === "fixed").length;
+    const returned = reportFiltered.filter((r) => r.status === "returned").length;
+    const pending = reportFiltered.filter((r) => r.status === "pending").length;
+    const inProgress = reportFiltered.filter((r) => r.status === "in_progress").length;
+    const cannotRepair = reportFiltered.filter((r) => r.status === "cannot_repair").length;
+    const warrantyCount = reportFiltered.filter((r) => !!r.warranty).length;
+    const totalCost = reportFiltered.reduce((sum, r) => sum + Number(r.cost || 0), 0);
+    const avgCost = total ? totalCost / total : 0;
+    const completionRate = total ? ((fixed + returned) / total) * 100 : 0;
+
+    return {
+      total,
+      fixed,
+      returned,
+      pending,
+      inProgress,
+      cannotRepair,
+      warrantyCount,
+      totalCost,
+      avgCost,
+      completionRate,
+    };
+  }, [reportFiltered]);
+
+  const departmentStats = useMemo(
+    () => groupCount(reportFiltered, (r) => r.department || "Unknown"),
+    [reportFiltered]
+  );
+  const technicianStats = useMemo(
+    () => groupCount(reportFiltered, (r) => r.technician || "Unassigned"),
+    [reportFiltered]
+  );
+  const deviceTypeStats = useMemo(
+    () => groupCount(reportFiltered, (r) => r.device_type || "Unknown"),
+    [reportFiltered]
+  );
+  const issueStats = useMemo(
+    () => groupCount(reportFiltered, (r) => r.issue || "Unknown"),
+    [reportFiltered]
+  );
+  const brandModelStats = useMemo(
+    () =>
+      groupCount(
+        reportFiltered,
+        (r) => `${r.brand || "Unknown"}${r.model ? ` / ${r.model}` : ""}`
+      ),
+    [reportFiltered]
+  );
+
+  const departmentOptions = useMemo(
+    () => ["all", ...new Set(records.map((r) => r.department || "Unknown"))],
+    [records]
+  );
+  const technicianOptions = useMemo(
+    () => ["all", ...new Set(records.map((r) => r.technician || "Unassigned"))],
+    [records]
+  );
+  const deviceTypeOptions = useMemo(
+    () => ["all", ...new Set(records.map((r) => r.device_type || "Unknown"))],
+    [records]
+  );
+
   const totalCount = records.length;
   const isAdmin = profile?.role === "admin";
 
@@ -796,8 +1082,8 @@ export default function App() {
       ticket_no: r.ticket_no || "",
       owner: r.owner || "",
       department: r.department || "",
-      device_type: r.device_type || "",
-      brand: r.brand || "",
+      device_type: r.device_type || "Laptop",
+      brand: r.brand || "Dell",
       model: r.model || "",
       serial_no: r.serial_no || "",
       asset_tag: r.asset_tag || "",
@@ -857,10 +1143,7 @@ export default function App() {
     }
 
     if (editing) {
-      const { error } = await supabase
-        .from("tickets")
-        .update(payload)
-        .eq("id", editing);
+      const { error } = await supabase.from("tickets").update(payload).eq("id", editing);
 
       if (error) {
         setErrorMessage(error.message);
@@ -870,9 +1153,7 @@ export default function App() {
 
       setSuccessMessage("Record updated successfully.");
     } else {
-      const { error } = await supabase
-        .from("tickets")
-        .insert([payload]);
+      const { error } = await supabase.from("tickets").insert([payload]);
 
       if (error) {
         setErrorMessage(error.message);
@@ -894,10 +1175,7 @@ export default function App() {
     const ok = window.confirm("Delete this record?");
     if (!ok) return;
 
-    const { error } = await supabase
-      .from("tickets")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("tickets").delete().eq("id", id);
 
     if (error) {
       setErrorMessage(error.message);
@@ -915,6 +1193,63 @@ export default function App() {
   const f = (key) => (e) => {
     const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const rf = (key) => (e) => {
+    const value = e.target.value;
+    setReportFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const resetReportFilters = () => {
+    setReportFilters(REPORT_FILTERS_DEFAULT);
+  };
+
+  const exportReportCsv = () => {
+    const header = [
+      "Record No",
+      "Owner",
+      "Department",
+      "Device Type",
+      "Brand",
+      "Model",
+      "Serial No",
+      "Asset Tag",
+      "Issue",
+      "Priority",
+      "Status",
+      "Technician",
+      "Date In",
+      "Date Out",
+      "Cost",
+      "Warranty",
+      "Notes",
+    ];
+
+    const rows = reportFiltered.map((r) => [
+      r.ticket_no,
+      r.owner,
+      r.department,
+      r.device_type,
+      r.brand,
+      r.model,
+      r.serial_no,
+      r.asset_tag,
+      r.issue,
+      PRIORITY[r.priority]?.label || r.priority,
+      STATUS[r.status]?.label || r.status,
+      r.technician,
+      r.date_in,
+      r.date_out,
+      r.cost,
+      r.warranty ? "Yes" : "No",
+      r.notes,
+    ]);
+
+    downloadCsv(`it-repair-report-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...rows]);
+  };
+
+  const printReport = () => {
+    window.print();
   };
 
   if (!session) {
@@ -940,12 +1275,8 @@ export default function App() {
               </div>
 
               <div className="hero-right">
-                <div className="hero-note">
-                  {profile?.full_name || session.user?.email}
-                </div>
-                <div className="role-chip">
-                  {profile?.role || "user"}
-                </div>
+                <div className="hero-note">{profile?.full_name || session.user?.email}</div>
+                <div className="role-chip">{profile?.role || "user"}</div>
                 <button className="btn btn-light" onClick={handleLogout}>
                   Logout
                 </button>
@@ -978,119 +1309,296 @@ export default function App() {
             {errorMessage && <div className="message error">Error: {errorMessage}</div>}
             {successMessage && <div className="message success">{successMessage}</div>}
 
-            <div className="toolbar">
-              <div className="toolbar-left">
-                <div className="search-box">
-                  <span className="search-icon">⌕</span>
-                  <input
-                    placeholder="Search record no, owner, department, device, serial, issue..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-
-                <select
-                  className="select"
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                >
-                  <option value="all">All Status</option>
-                  {Object.entries(STATUS).map(([k, v]) => (
-                    <option key={k} value={k}>{v.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <button className="btn btn-primary" onClick={openAdd}>
-                + New Record
+            <div className="tabs">
+              <button
+                className={`tab-btn ${activeTab === "records" ? "active" : ""}`}
+                onClick={() => setActiveTab("records")}
+              >
+                Records
+              </button>
+              <button
+                className={`tab-btn ${activeTab === "reports" ? "active" : ""}`}
+                onClick={() => setActiveTab("reports")}
+              >
+                Reports & Analytics
               </button>
             </div>
 
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Record No</th>
-                    <th>Owner</th>
-                    <th>Department</th>
-                    <th>Device Type</th>
-                    <th>Brand / Model</th>
-                    <th>Serial No</th>
-                    <th>Asset Tag</th>
-                    <th>Issue</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                    <th>Technician</th>
-                    <th>Date In</th>
-                    <th>Date Out</th>
-                    <th>Cost</th>
-                    <th>Warranty</th>
-                    <th>Notes</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
+            {activeTab === "records" ? (
+              <>
+                <div className="toolbar">
+                  <div className="toolbar-left">
+                    <div className="search-box">
+                      <span className="search-icon">⌕</span>
+                      <input
+                        placeholder="Search record no, owner, department, device, serial, issue..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
 
-                <tbody>
-                  {!loading && filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={17}>
-                        <div className="empty-state">No records found.</div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filtered.map((r) => {
-                      const s = STATUS[r.status] || STATUS.pending;
-                      const p = PRIORITY[r.priority] || PRIORITY.medium;
+                    <select
+                      className="select"
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                    >
+                      <option value="all">All Status</option>
+                      {Object.entries(STATUS).map(([k, v]) => (
+                        <option key={k} value={k}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                      return (
-                        <tr key={r.id}>
-                          <td className="mono">{r.ticket_no}</td>
-                          <td><strong>{r.owner}</strong></td>
-                          <td>{r.department || "—"}</td>
-                          <td>{r.device_type || "—"}</td>
-                          <td>{r.brand} <span className="muted">{r.model}</span></td>
-                          <td className="mono">{r.serial_no || "—"}</td>
-                          <td className="mono">{r.asset_tag || "—"}</td>
-                          <td className="muted" style={{ maxWidth: 240 }}>{r.issue}</td>
-                          <td>
-                            <span className="badge" style={{ color: p.color, background: p.bg }}>
-                              <span className="badge-dot"></span>{p.label}
-                            </span>
-                          </td>
-                          <td>
-                            <span className="badge" style={{ color: s.color, background: s.bg }}>
-                              <span className="badge-dot"></span>{s.label}
-                            </span>
-                          </td>
-                          <td>{r.technician || "Unassigned"}</td>
-                          <td>{r.date_in || "—"}</td>
-                          <td>{r.date_out || "—"}</td>
-                          <td>{r.cost !== null && r.cost !== undefined ? `$${r.cost}` : "—"}</td>
-                          <td>{r.warranty ? "Yes" : "No"}</td>
-                          <td className="muted" style={{ maxWidth: 220 }}>{r.notes || "—"}</td>
-                          <td>
-                            <div className="actions">
-                              <button className="btn btn-edit btn-sm" onClick={() => openEdit(r)}>
-                                Edit
-                              </button>
-                              {isAdmin && (
-                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(r.id)}>
-                                  Delete
-                                </button>
-                              )}
-                            </div>
+                  <button className="btn btn-primary" onClick={openAdd}>
+                    + New Record
+                  </button>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Record No</th>
+                        <th>Owner</th>
+                        <th>Department</th>
+                        <th>Device Type</th>
+                        <th>Brand / Model</th>
+                        <th>Serial No</th>
+                        <th>Asset Tag</th>
+                        <th>Issue</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Technician</th>
+                        <th>Date In</th>
+                        <th>Date Out</th>
+                        <th>Cost</th>
+                        <th>Warranty</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {!loading && filtered.length === 0 ? (
+                        <tr>
+                          <td colSpan={17}>
+                            <div className="empty-state">No records found.</div>
                           </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                      ) : (
+                        filtered.map((r) => {
+                          const s = STATUS[r.status] || STATUS.pending;
+                          const p = PRIORITY[r.priority] || PRIORITY.medium;
 
-            <div className="footer-meta">
-              {filtered.length} / {records.length} records displayed
-            </div>
+                          return (
+                            <tr key={r.id}>
+                              <td className="mono">{r.ticket_no}</td>
+                              <td>
+                                <strong>{r.owner}</strong>
+                              </td>
+                              <td>{r.department || "—"}</td>
+                              <td>{r.device_type || "—"}</td>
+                              <td>
+                                {r.brand} <span className="muted">{r.model}</span>
+                              </td>
+                              <td className="mono">{r.serial_no || "—"}</td>
+                              <td className="mono">{r.asset_tag || "—"}</td>
+                              <td className="muted" style={{ maxWidth: 240 }}>
+                                {r.issue}
+                              </td>
+                              <td>
+                                <span className="badge" style={{ color: p.color, background: p.bg }}>
+                                  <span className="badge-dot"></span>
+                                  {p.label}
+                                </span>
+                              </td>
+                              <td>
+                                <span className="badge" style={{ color: s.color, background: s.bg }}>
+                                  <span className="badge-dot"></span>
+                                  {s.label}
+                                </span>
+                              </td>
+                              <td>{r.technician || "Unassigned"}</td>
+                              <td>{r.date_in || "—"}</td>
+                              <td>{r.date_out || "—"}</td>
+                              <td>
+                                {r.cost !== null && r.cost !== undefined ? formatMoney(r.cost) : "—"}
+                              </td>
+                              <td>{r.warranty ? "Yes" : "No"}</td>
+                              <td className="muted" style={{ maxWidth: 220 }}>
+                                {r.notes || "—"}
+                              </td>
+                              <td>
+                                <div className="actions">
+                                  <button className="btn btn-edit btn-sm" onClick={() => openEdit(r)}>
+                                    Edit
+                                  </button>
+                                  {isAdmin && (
+                                    <button
+                                      className="btn btn-danger btn-sm"
+                                      onClick={() => handleDelete(r.id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="footer-meta">
+                  {filtered.length} / {records.length} records displayed
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="report-filters-wrap">
+                  <h3 className="section-title">Report Filters</h3>
+                  <div className="report-filter-grid">
+                    <div className="field">
+                      <label>Start Date</label>
+                      <input type="date" value={reportFilters.startDate} onChange={rf("startDate")} />
+                    </div>
+                    <div className="field">
+                      <label>End Date</label>
+                      <input type="date" value={reportFilters.endDate} onChange={rf("endDate")} />
+                    </div>
+                    <div className="field">
+                      <label>Status</label>
+                      <select value={reportFilters.status} onChange={rf("status")}>
+                        <option value="all">All Status</option>
+                        {Object.entries(STATUS).map(([k, v]) => (
+                          <option key={k} value={k}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Priority</label>
+                      <select value={reportFilters.priority} onChange={rf("priority")}>
+                        <option value="all">All Priority</option>
+                        {Object.entries(PRIORITY).map(([k, v]) => (
+                          <option key={k} value={k}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Department</label>
+                      <select value={reportFilters.department} onChange={rf("department")}>
+                        {departmentOptions.map((item) => (
+                          <option key={item} value={item}>
+                            {item === "all" ? "All Departments" : item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Technician</label>
+                      <select value={reportFilters.technician} onChange={rf("technician")}>
+                        {technicianOptions.map((item) => (
+                          <option key={item} value={item}>
+                            {item === "all" ? "All Technicians" : item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field field-full">
+                      <label>Device Type</label>
+                      <select value={reportFilters.deviceType} onChange={rf("deviceType")}>
+                        {deviceTypeOptions.map((item) => (
+                          <option key={item} value={item}>
+                            {item === "all" ? "All Device Types" : item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="report-actions">
+                    <button className="btn btn-light" onClick={resetReportFilters}>
+                      Reset Filters
+                    </button>
+                    <button className="btn btn-primary" onClick={exportReportCsv}>
+                      Export CSV
+                    </button>
+                    <button className="btn btn-light" onClick={printReport}>
+                      Print Report
+                    </button>
+                  </div>
+                </div>
+
+                <div className="report-card-grid">
+                  <div className="report-summary-card">
+                    <div className="summary-label">Total Records</div>
+                    <div className="summary-value">{reportStats.total}</div>
+                    <div className="summary-foot muted">Records in report result</div>
+                  </div>
+                  <div className="report-summary-card">
+                    <div className="summary-label">Completion Rate</div>
+                    <div className="summary-value">{reportStats.completionRate.toFixed(1)}%</div>
+                    <div className="summary-foot muted">Fixed + Returned</div>
+                  </div>
+                  <div className="report-summary-card">
+                    <div className="summary-label">Total Cost</div>
+                    <div className="summary-value">{formatMoney(reportStats.totalCost)}</div>
+                    <div className="summary-foot muted">Total repair spending</div>
+                  </div>
+                  <div className="report-summary-card">
+                    <div className="summary-label">Average Cost</div>
+                    <div className="summary-value">{formatMoney(reportStats.avgCost)}</div>
+                    <div className="summary-foot muted">Average per record</div>
+                  </div>
+                  <div className="report-summary-card">
+                    <div className="summary-label">Pending</div>
+                    <div className="summary-value">{reportStats.pending}</div>
+                    <div className="summary-foot muted">Waiting for action</div>
+                  </div>
+                  <div className="report-summary-card">
+                    <div className="summary-label">In Progress</div>
+                    <div className="summary-value">{reportStats.inProgress}</div>
+                    <div className="summary-foot muted">Currently processing</div>
+                  </div>
+                  <div className="report-summary-card">
+                    <div className="summary-label">Fixed / Returned</div>
+                    <div className="summary-value">{reportStats.fixed + reportStats.returned}</div>
+                    <div className="summary-foot muted">Completed records</div>
+                  </div>
+                  <div className="report-summary-card">
+                    <div className="summary-label">Cannot Repair / Warranty</div>
+                    <div className="summary-value">
+                      {reportStats.cannotRepair} / {reportStats.warrantyCount}
+                    </div>
+                    <div className="summary-foot muted">Cannot repair and under warranty</div>
+                  </div>
+                </div>
+
+                <div className="analytics-grid">
+                  <StatList title="Records by Department" items={departmentStats} />
+                  <StatList title="Records by Technician" items={technicianStats} />
+                  <StatList title="Records by Device Type" items={deviceTypeStats} />
+                  <StatList title="Top Issues" items={issueStats} />
+                  <StatList title="Top Brand / Model" items={brandModelStats} />
+                  <div className="analytics-card">
+                    <h3 className="section-title">Report Notes</h3>
+                    <div className="list-stat"><span>Filtered Records</span><strong>{reportStats.total}</strong></div>
+                    <div className="list-stat"><span>Fixed</span><strong>{reportStats.fixed}</strong></div>
+                    <div className="list-stat"><span>Returned</span><strong>{reportStats.returned}</strong></div>
+                    <div className="list-stat"><span>Cannot Repair</span><strong>{reportStats.cannotRepair}</strong></div>
+                    <div className="list-stat"><span>Under Warranty</span><strong>{reportStats.warrantyCount}</strong></div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -1107,7 +1615,9 @@ export default function App() {
                   <h2 className="modal-title">{editing ? "Edit Record" : "New Record"}</h2>
                   <p className="modal-subtitle">Fill in the repair record information below.</p>
                 </div>
-                <button className="close-btn" onClick={closeModal}>✕</button>
+                <button className="close-btn" onClick={closeModal}>
+                  ✕
+                </button>
               </div>
 
               <div className="modal-body">
@@ -1125,25 +1635,17 @@ export default function App() {
 
                   <div className="field">
                     <label>Owner *</label>
-                    <input
-                      value={form.owner}
-                      onChange={f("owner")}
-                      placeholder="Owner name"
-                    />
+                    <input value={form.owner} onChange={f("owner")} placeholder="Owner name" />
                   </div>
 
                   <div className="field">
                     <label>Department</label>
-                    <input
-                      value={form.department}
-                      onChange={f("department")}
-                      placeholder="Department"
-                    />
+                    <input value={form.department} onChange={f("department")} placeholder="Department" />
                   </div>
 
                   <div className="field">
                     <label>Device Type</label>
-                    <select value={ form.device_type} onChange={f("device_type")}>
+                    <select value={form.device_type} onChange={f("device_type")}>
                       <option value="Laptop">Laptop</option>
                       <option value="Desktop">Desktop</option>
                       <option value="Printer">Printer</option>
@@ -1154,7 +1656,7 @@ export default function App() {
 
                   <div className="field">
                     <label>Brand *</label>
-                    <select value={ form.brand} onChange={f("brand")}>
+                    <select value={form.brand} onChange={f("brand")}>
                       <option value="Dell">Dell</option>
                       <option value="HP">HP</option>
                       <option value="Lenovo">Lenovo</option>
@@ -1165,29 +1667,17 @@ export default function App() {
 
                   <div className="field">
                     <label>Model *</label>
-                    <input
-                      value={form.model}
-                      onChange={f("model")}
-                      placeholder="Model name"
-                    />
+                    <input value={form.model} onChange={f("model")} placeholder="Model name" />
                   </div>
 
                   <div className="field">
                     <label>Serial No</label>
-                    <input
-                      value={form.serial_no}
-                      onChange={f("serial_no")}
-                      placeholder="Serial number"
-                    />
+                    <input value={form.serial_no} onChange={f("serial_no")} placeholder="Serial number" />
                   </div>
 
                   <div className="field">
                     <label>Asset Tag</label>
-                    <input
-                      value={form.asset_tag}
-                      onChange={f("asset_tag")}
-                      placeholder="Asset tag"
-                    />
+                    <input value={form.asset_tag} onChange={f("asset_tag")} placeholder="Asset tag" />
                   </div>
 
                   <div className="field">
@@ -1204,7 +1694,9 @@ export default function App() {
                     <label>Status</label>
                     <select value={form.status} onChange={f("status")}>
                       {Object.entries(STATUS).map(([k, v]) => (
-                        <option key={k} value={k}>{v.label}</option>
+                        <option key={k} value={k}>
+                          {v.label}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1220,12 +1712,7 @@ export default function App() {
 
                   <div className="field">
                     <label>Cost ($)</label>
-                    <input
-                      type="number"
-                      value={form.cost}
-                      onChange={f("cost")}
-                      placeholder="0.00"
-                    />
+                    <input type="number" value={form.cost} onChange={f("cost")} placeholder="0.00" />
                   </div>
 
                   <div className="field">
@@ -1240,20 +1727,12 @@ export default function App() {
 
                   <div className="field form-full">
                     <label>Issue *</label>
-                    <textarea
-                      value={form.issue}
-                      onChange={f("issue")}
-                      placeholder="Describe the issue"
-                    />
+                    <textarea value={form.issue} onChange={f("issue")} placeholder="Describe the issue" />
                   </div>
 
                   <div className="field form-full">
                     <label>Notes</label>
-                    <textarea
-                      value={form.notes}
-                      onChange={f("notes")}
-                      placeholder="Repair notes"
-                    />
+                    <textarea value={form.notes} onChange={f("notes")} placeholder="Repair notes" />
                   </div>
 
                   <div className="field form-full">
@@ -1264,7 +1743,9 @@ export default function App() {
                         checked={form.warranty}
                         onChange={f("warranty")}
                       />
-                      <label htmlFor="warranty" style={{ margin: 0 }}>Under Warranty</label>
+                      <label htmlFor="warranty" style={{ margin: 0 }}>
+                        Under Warranty
+                      </label>
                     </div>
                   </div>
                 </div>
