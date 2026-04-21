@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   "https://bcbrxewxdvibbfsuzsef.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjYnJ4ZXd4ZHZpYmJmc3V6c2VmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0ODA2MzQsImV4cCI6MjA5MDA1NjYzNH0.Bx9Q7y7bh44KwwW-al0jotJeRW8u1KBWNM0CJRVkK9w"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmJmc3V6c2VmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0ODA2MzQsImV4cCI6MjA5MDA1NjYzNH0.Bx9Q7y7bh44KwwW-al0jotJeRW8u1KBWNM0CJRVkK9w"
 );
 
 const STATUS = {
@@ -12,13 +12,6 @@ const STATUS = {
   fixed: { label: "Fixed", color: "#166534", bg: "#f0fdf4" },
   returned: { label: "Returned", color: "#6d28d9", bg: "#f5f3ff" },
   cannot_repair: { label: "Cannot Repair", color: "#b91c1c", bg: "#fef2f2" },
-};
-
-const PRIORITY = {
-  low: { label: "Low", color: "#475569", bg: "#f8fafc" },
-  medium: { label: "Medium", color: "#1d4ed8", bg: "#eff6ff" },
-  high: { label: "High", color: "#b45309", bg: "#fff7ed" },
-  urgent: { label: "Urgent", color: "#b91c1c", bg: "#fef2f2" },
 };
 
 const EMPTY_FORM = {
@@ -31,9 +24,7 @@ const EMPTY_FORM = {
   serial_no: "",
   asset_tag: "",
   issue: "",
-  priority: "medium",
   status: "pending",
-  technician: "Unassigned",
   date_in: new Date().toISOString().split("T")[0],
   date_out: "",
   cost: "",
@@ -45,10 +36,9 @@ const REPORT_FILTERS_DEFAULT = {
   startDate: "",
   endDate: "",
   status: "all",
-  priority: "all",
   department: "all",
-  technician: "all",
   deviceType: "all",
+  assetTag: "",
 };
 
 const styles = `
@@ -348,7 +338,7 @@ const styles = `
 
   table {
     width: 100%;
-    min-width: 1750px;
+    min-width: 1550px;
     border-collapse: separate;
     border-spacing: 0;
   }
@@ -944,9 +934,7 @@ export default function App() {
           r.serial_no,
           r.asset_tag,
           r.issue,
-          r.priority,
           r.status,
-          r.technician,
           r.notes,
         ].some((f) => String(f || "").toLowerCase().includes(q));
 
@@ -976,9 +964,6 @@ export default function App() {
       if (reportFilters.status !== "all" && r.status !== reportFilters.status) {
         return false;
       }
-      if (reportFilters.priority !== "all" && r.priority !== reportFilters.priority) {
-        return false;
-      }
       if (
         reportFilters.department !== "all" &&
         (r.department || "Unknown") !== reportFilters.department
@@ -986,14 +971,14 @@ export default function App() {
         return false;
       }
       if (
-        reportFilters.technician !== "all" &&
-        (r.technician || "Unassigned") !== reportFilters.technician
+        reportFilters.deviceType !== "all" &&
+        (r.device_type || "Unknown") !== reportFilters.deviceType
       ) {
         return false;
       }
       if (
-        reportFilters.deviceType !== "all" &&
-        (r.device_type || "Unknown") !== reportFilters.deviceType
+        reportFilters.assetTag &&
+        !(r.asset_tag || "").toLowerCase().includes(reportFilters.assetTag.toLowerCase())
       ) {
         return false;
       }
@@ -1031,18 +1016,17 @@ export default function App() {
     () => groupCount(reportFiltered, (r) => r.department || "Unknown"),
     [reportFiltered]
   );
-  const technicianStats = useMemo(
-    () => groupCount(reportFiltered, (r) => r.technician || "Unassigned"),
-    [reportFiltered]
-  );
+
   const deviceTypeStats = useMemo(
     () => groupCount(reportFiltered, (r) => r.device_type || "Unknown"),
     [reportFiltered]
   );
+
   const issueStats = useMemo(
     () => groupCount(reportFiltered, (r) => r.issue || "Unknown"),
     [reportFiltered]
   );
+
   const brandModelStats = useMemo(
     () =>
       groupCount(
@@ -1052,14 +1036,16 @@ export default function App() {
     [reportFiltered]
   );
 
+  const assetTagStats = useMemo(
+    () => groupCount(reportFiltered, (r) => r.asset_tag || "No Asset Tag"),
+    [reportFiltered]
+  );
+
   const departmentOptions = useMemo(
     () => ["all", ...new Set(records.map((r) => r.department || "Unknown"))],
     [records]
   );
-  const technicianOptions = useMemo(
-    () => ["all", ...new Set(records.map((r) => r.technician || "Unassigned"))],
-    [records]
-  );
+
   const deviceTypeOptions = useMemo(
     () => ["all", ...new Set(records.map((r) => r.device_type || "Unknown"))],
     [records]
@@ -1088,9 +1074,7 @@ export default function App() {
       serial_no: r.serial_no || "",
       asset_tag: r.asset_tag || "",
       issue: r.issue || "",
-      priority: r.priority || "medium",
       status: r.status || "pending",
-      technician: r.technician || "Unassigned",
       date_in: r.date_in || "",
       date_out: r.date_out || "",
       cost: r.cost ?? "",
@@ -1128,9 +1112,7 @@ export default function App() {
       serial_no: form.serial_no ? form.serial_no.trim() : null,
       asset_tag: form.asset_tag ? form.asset_tag.trim() : null,
       issue: form.issue.trim(),
-      priority: form.priority || "medium",
       status: form.status || "pending",
-      technician: form.technician ? form.technician.trim() : "Unassigned",
       date_in: form.date_in || null,
       date_out: form.date_out || null,
       cost: form.cost === "" ? null : Number(form.cost),
@@ -1215,9 +1197,7 @@ export default function App() {
       "Serial No",
       "Asset Tag",
       "Issue",
-      "Priority",
       "Status",
-      "Technician",
       "Date In",
       "Date Out",
       "Cost",
@@ -1235,9 +1215,7 @@ export default function App() {
       r.serial_no,
       r.asset_tag,
       r.issue,
-      PRIORITY[r.priority]?.label || r.priority,
       STATUS[r.status]?.label || r.status,
-      r.technician,
       r.date_in,
       r.date_out,
       r.cost,
@@ -1245,7 +1223,10 @@ export default function App() {
       r.notes,
     ]);
 
-    downloadCsv(`it-repair-report-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...rows]);
+    downloadCsv(`it-repair-report-${new Date().toISOString().slice(0, 10)}.csv`, [
+      header,
+      ...rows,
+    ]);
   };
 
   const printReport = () => {
@@ -1331,7 +1312,7 @@ export default function App() {
                     <div className="search-box">
                       <span className="search-icon">⌕</span>
                       <input
-                        placeholder="Search record no, owner, department, device, serial, issue..."
+                        placeholder="Search record no, owner, department, device, serial, asset tag, issue..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                       />
@@ -1368,9 +1349,7 @@ export default function App() {
                         <th>Serial No</th>
                         <th>Asset Tag</th>
                         <th>Issue</th>
-                        <th>Priority</th>
                         <th>Status</th>
-                        <th>Technician</th>
                         <th>Date In</th>
                         <th>Date Out</th>
                         <th>Cost</th>
@@ -1383,14 +1362,13 @@ export default function App() {
                     <tbody>
                       {!loading && filtered.length === 0 ? (
                         <tr>
-                          <td colSpan={17}>
+                          <td colSpan={15}>
                             <div className="empty-state">No records found.</div>
                           </td>
                         </tr>
                       ) : (
                         filtered.map((r) => {
                           const s = STATUS[r.status] || STATUS.pending;
-                          const p = PRIORITY[r.priority] || PRIORITY.medium;
 
                           return (
                             <tr key={r.id}>
@@ -1409,18 +1387,11 @@ export default function App() {
                                 {r.issue}
                               </td>
                               <td>
-                                <span className="badge" style={{ color: p.color, background: p.bg }}>
-                                  <span className="badge-dot"></span>
-                                  {p.label}
-                                </span>
-                              </td>
-                              <td>
                                 <span className="badge" style={{ color: s.color, background: s.bg }}>
                                   <span className="badge-dot"></span>
                                   {s.label}
                                 </span>
                               </td>
-                              <td>{r.technician || "Unassigned"}</td>
                               <td>{r.date_in || "—"}</td>
                               <td>{r.date_out || "—"}</td>
                               <td>
@@ -1466,10 +1437,12 @@ export default function App() {
                       <label>Start Date</label>
                       <input type="date" value={reportFilters.startDate} onChange={rf("startDate")} />
                     </div>
+
                     <div className="field">
                       <label>End Date</label>
                       <input type="date" value={reportFilters.endDate} onChange={rf("endDate")} />
                     </div>
+
                     <div className="field">
                       <label>Status</label>
                       <select value={reportFilters.status} onChange={rf("status")}>
@@ -1481,17 +1454,7 @@ export default function App() {
                         ))}
                       </select>
                     </div>
-                    <div className="field">
-                      <label>Priority</label>
-                      <select value={reportFilters.priority} onChange={rf("priority")}>
-                        <option value="all">All Priority</option>
-                        {Object.entries(PRIORITY).map(([k, v]) => (
-                          <option key={k} value={k}>
-                            {v.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+
                     <div className="field">
                       <label>Department</label>
                       <select value={reportFilters.department} onChange={rf("department")}>
@@ -1502,17 +1465,8 @@ export default function App() {
                         ))}
                       </select>
                     </div>
+
                     <div className="field">
-                      <label>Technician</label>
-                      <select value={reportFilters.technician} onChange={rf("technician")}>
-                        {technicianOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item === "all" ? "All Technicians" : item}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="field field-full">
                       <label>Device Type</label>
                       <select value={reportFilters.deviceType} onChange={rf("deviceType")}>
                         {deviceTypeOptions.map((item) => (
@@ -1521,6 +1475,16 @@ export default function App() {
                           </option>
                         ))}
                       </select>
+                    </div>
+
+                    <div className="field">
+                      <label>Asset Tag</label>
+                      <input
+                        type="text"
+                        placeholder="Search Asset Tag"
+                        value={reportFilters.assetTag}
+                        onChange={rf("assetTag")}
+                      />
                     </div>
                   </div>
 
@@ -1543,36 +1507,43 @@ export default function App() {
                     <div className="summary-value">{reportStats.total}</div>
                     <div className="summary-foot muted">Records in report result</div>
                   </div>
+
                   <div className="report-summary-card">
                     <div className="summary-label">Completion Rate</div>
                     <div className="summary-value">{reportStats.completionRate.toFixed(1)}%</div>
                     <div className="summary-foot muted">Fixed + Returned</div>
                   </div>
+
                   <div className="report-summary-card">
                     <div className="summary-label">Total Cost</div>
                     <div className="summary-value">{formatMoney(reportStats.totalCost)}</div>
                     <div className="summary-foot muted">Total repair spending</div>
                   </div>
+
                   <div className="report-summary-card">
                     <div className="summary-label">Average Cost</div>
                     <div className="summary-value">{formatMoney(reportStats.avgCost)}</div>
                     <div className="summary-foot muted">Average per record</div>
                   </div>
+
                   <div className="report-summary-card">
                     <div className="summary-label">Pending</div>
                     <div className="summary-value">{reportStats.pending}</div>
                     <div className="summary-foot muted">Waiting for action</div>
                   </div>
+
                   <div className="report-summary-card">
                     <div className="summary-label">In Progress</div>
                     <div className="summary-value">{reportStats.inProgress}</div>
                     <div className="summary-foot muted">Currently processing</div>
                   </div>
+
                   <div className="report-summary-card">
                     <div className="summary-label">Fixed / Returned</div>
                     <div className="summary-value">{reportStats.fixed + reportStats.returned}</div>
                     <div className="summary-foot muted">Completed records</div>
                   </div>
+
                   <div className="report-summary-card">
                     <div className="summary-label">Cannot Repair / Warranty</div>
                     <div className="summary-value">
@@ -1584,10 +1555,10 @@ export default function App() {
 
                 <div className="analytics-grid">
                   <StatList title="Records by Department" items={departmentStats} />
-                  <StatList title="Records by Technician" items={technicianStats} />
                   <StatList title="Records by Device Type" items={deviceTypeStats} />
                   <StatList title="Top Issues" items={issueStats} />
                   <StatList title="Top Brand / Model" items={brandModelStats} />
+                  <StatList title="Records by Asset Tag" items={assetTagStats} />
                   <div className="analytics-card">
                     <h3 className="section-title">Report Notes</h3>
                     <div className="list-stat"><span>Filtered Records</span><strong>{reportStats.total}</strong></div>
@@ -1681,16 +1652,6 @@ export default function App() {
                   </div>
 
                   <div className="field">
-                    <label>Priority</label>
-                    <select value={form.priority} onChange={f("priority")}>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
-                  </div>
-
-                  <div className="field">
                     <label>Status</label>
                     <select value={form.status} onChange={f("status")}>
                       {Object.entries(STATUS).map(([k, v]) => (
@@ -1699,15 +1660,6 @@ export default function App() {
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div className="field">
-                    <label>Technician</label>
-                    <input
-                      value={form.technician}
-                      onChange={f("technician")}
-                      placeholder="Technician name"
-                    />
                   </div>
 
                   <div className="field">
